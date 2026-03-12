@@ -24,6 +24,7 @@ import { useTheme } from "../hooks/useTheme";
 import { buildPatchCacheKey } from "../lib/diffRendering";
 import { resolveDiffThemeName } from "../lib/diffRendering";
 import { useTurnDiffSummaries } from "../hooks/useTurnDiffSummaries";
+import { getUnavailableCheckpointDiffMessage } from "./diffPanel.logic";
 import { useStore } from "../store";
 import { ToggleGroup, Toggle } from "./ui/toggle-group";
 
@@ -210,6 +211,10 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
       ? undefined
       : (orderedTurnDiffSummaries.find((summary) => summary.turnId === selectedTurnId) ??
         orderedTurnDiffSummaries[0]);
+  const unavailableCheckpointDiffMessage = getUnavailableCheckpointDiffMessage({
+    activeThread,
+    selectedTurn,
+  });
   const selectedCheckpointTurnCount =
     selectedTurn &&
     (selectedTurn.checkpointTurnCount ?? inferredCheckpointTurnCountByTurnId[selectedTurn.turnId]);
@@ -261,7 +266,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
       fromTurnCount: activeCheckpointRange?.fromTurnCount ?? null,
       toTurnCount: activeCheckpointRange?.toTurnCount ?? null,
       cacheScope: selectedTurn ? `turn:${selectedTurn.turnId}` : conversationCacheScope,
-      enabled: isGitRepo,
+      enabled: isGitRepo && unavailableCheckpointDiffMessage === null,
     }),
   );
   const selectedTurnCheckpointDiff = selectedTurn
@@ -270,13 +275,15 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
   const conversationCheckpointDiff = selectedTurn
     ? undefined
     : activeCheckpointDiffQuery.data?.diff;
-  const isLoadingCheckpointDiff = activeCheckpointDiffQuery.isLoading;
+  const isLoadingCheckpointDiff =
+    unavailableCheckpointDiffMessage === null && activeCheckpointDiffQuery.isLoading;
   const checkpointDiffError =
-    activeCheckpointDiffQuery.error instanceof Error
+    unavailableCheckpointDiffMessage ??
+    (activeCheckpointDiffQuery.error instanceof Error
       ? activeCheckpointDiffQuery.error.message
       : activeCheckpointDiffQuery.error
         ? "Failed to load checkpoint diff."
-        : null;
+        : null);
 
   const selectedPatch = selectedTurn ? selectedTurnCheckpointDiff : conversationCheckpointDiff;
   const hasResolvedPatch = typeof selectedPatch === "string";
@@ -556,19 +563,23 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
             ref={patchViewportRef}
             className="diff-panel-viewport min-h-0 min-w-0 flex-1 overflow-hidden"
           >
-            {checkpointDiffError && !renderablePatch && (
-              <div className="px-3">
-                <p className="mb-2 text-[11px] text-red-500/80">{checkpointDiffError}</p>
-              </div>
-            )}
+            {checkpointDiffError &&
+              !renderablePatch &&
+              unavailableCheckpointDiffMessage === null && (
+                <div className="px-3">
+                  <p className="mb-2 text-[11px] text-red-500/80">{checkpointDiffError}</p>
+                </div>
+              )}
             {!renderablePatch ? (
               <div className="flex h-full items-center justify-center px-3 py-2 text-xs text-muted-foreground/70">
                 <p>
                   {isLoadingCheckpointDiff
                     ? "Loading checkpoint diff..."
-                    : hasNoNetChanges
-                      ? "No net changes in this selection."
-                      : "No patch available for this selection."}
+                    : checkpointDiffError
+                      ? checkpointDiffError
+                      : hasNoNetChanges
+                        ? "No net changes in this selection."
+                        : "No patch available for this selection."}
                 </p>
               </div>
             ) : renderablePatch.kind === "files" ? (
