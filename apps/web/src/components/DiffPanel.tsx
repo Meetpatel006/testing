@@ -212,7 +212,6 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
       : (orderedTurnDiffSummaries.find((summary) => summary.turnId === selectedTurnId) ??
         orderedTurnDiffSummaries[0]);
   const unavailableCheckpointDiffMessage = getUnavailableCheckpointDiffMessage({
-    activeThread,
     selectedTurn,
   });
   const selectedCheckpointTurnCount =
@@ -260,13 +259,17 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     }
     return `conversation:${orderedTurnDiffSummaries.map((summary) => summary.turnId).join(",")}`;
   }, [orderedTurnDiffSummaries, selectedTurn]);
+  const isCheckpointAvailable = !(
+    selectedTurn &&
+    (selectedTurn.status === "missing" || !selectedTurn.checkpointRef)
+  );
   const activeCheckpointDiffQuery = useQuery(
     checkpointDiffQueryOptions({
       threadId: activeThreadId,
       fromTurnCount: activeCheckpointRange?.fromTurnCount ?? null,
       toTurnCount: activeCheckpointRange?.toTurnCount ?? null,
       cacheScope: selectedTurn ? `turn:${selectedTurn.turnId}` : conversationCacheScope,
-      enabled: isGitRepo && unavailableCheckpointDiffMessage === null,
+      enabled: isGitRepo && unavailableCheckpointDiffMessage === null && isCheckpointAvailable,
     }),
   );
   const selectedTurnCheckpointDiff = selectedTurn
@@ -563,13 +566,11 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
             ref={patchViewportRef}
             className="diff-panel-viewport min-h-0 min-w-0 flex-1 overflow-hidden"
           >
-            {checkpointDiffError &&
-              !renderablePatch &&
-             (
-                <div className="px-3">
-                  <p className="mb-2 text-[11px] text-red-500/80">{checkpointDiffError}</p>
-                </div>
-              )}
+            {checkpointDiffError && !renderablePatch && (
+              <div className="px-3">
+                <p className="mb-2 text-[11px] text-red-500/80">{checkpointDiffError}</p>
+              </div>
+            )}
             {!renderablePatch ? (
               <div className="flex h-full items-center justify-center px-3 py-2 text-xs text-muted-foreground/70">
                 <p>
